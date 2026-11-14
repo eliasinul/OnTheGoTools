@@ -1,0 +1,74 @@
+% Print-ready styling injected via --include-in-header.
+% Assumes xelatex + pandoc's default article/report class machinery.
+
+\usepackage{fancyhdr}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{caption}
+\usepackage[most]{tcolorbox}
+\usepackage{enumitem}
+\usepackage{newunicodechar}
+\usepackage{seqsplit}
+
+% Long inline code spans (file paths, module names) have no natural break
+% point for LaTeX and otherwise run off the page margin.
+% \DeclareRobustCommand (not \renewcommand) keeps \texttt safe to use in
+% moving arguments -- section titles, the .toc file, PDF bookmarks -- by
+% falling back to \protect\texttt there instead of expanding \seqsplit.
+\DeclareRobustCommand{\texttt}[1]{{\ttfamily\seqsplit{#1}}}
+
+% Fall back to DejaVu Sans for symbols absent from the main serif font.
+\newfontfamily\symbolfallback{DejaVu Sans}
+\newunicodechar{⚠}{{\symbolfallback ⚠}}
+
+% -- Page geometry / headers & footers --------------------------------------
+\pagestyle{fancy}
+\fancyhf{}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\footrulewidth}{0.4pt}
+% article class doesn't drive \leftmark/\rightmark off \section the way
+% report/book do, so use the document title (constant) rather than a
+% per-section running head. \maketitle globally clears \@title right
+% after use, so grab a copy before that happens.
+\makeatletter
+\AtBeginDocument{\xdef\mdpdfdoctitle{\@title}}
+\makeatother
+\fancyhead[L]{\small\itshape \mdpdfdoctitle}
+\fancyhead[R]{\small\thepage}
+
+% -- Tables: nicer rules + readable long tables ------------------------------
+\setlength{\LTpre}{0.6\baselineskip}
+\setlength{\LTpost}{0.6\baselineskip}
+\renewcommand{\arraystretch}{1.15}
+
+% -- Blockquotes as a shaded callout -----------------------------------------
+\renewenvironment{quote}{%
+  \begin{tcolorbox}[colback=black!4,colframe=black!25,boxrule=0.4pt,arc=1mm,left=6pt,right=6pt,top=4pt,bottom=4pt]
+}{%
+  \end{tcolorbox}
+}
+
+% -- Code blocks: subtle frame -----------------------------------------------
+\usepackage{etoolbox}
+\definecolor{codebg}{RGB}{245,245,245}
+\newcommand{\shadedopen}{\begin{tcolorbox}[colback=codebg,boxrule=0pt,arc=0mm,left=4pt,right=4pt,top=2pt,bottom=2pt,breakable]}
+\newcommand{\shadedclose}{\end{tcolorbox}}
+\ifdefined\Shaded
+  \renewenvironment{Shaded}{\shadedopen}{\shadedclose}
+\else
+  \newenvironment{Shaded}{\shadedopen}{\shadedclose}
+\fi
+
+% -- Links ---------------------------------------------------------------
+\hypersetup{
+  colorlinks=true,
+  linkcolor={blue!50!black},
+  citecolor={blue!50!black},
+  urlcolor={blue!55!black},
+  pdfborder={0 0 0}
+}
+
+% -- Widow/orphan control for print ------------------------------------------
+\widowpenalty=10000
+\clubpenalty=10000
