@@ -22,18 +22,21 @@ you want a repeatable, print-ready result with the repository's research-note
 defaults.
 
 ## Usage
-Assuming you have `python`, have the tool in 'tools/md2pdf', and the required dependencies installed, you can convert a Markdown file to PDF using the following command:
 
+**Setup:**
+1. Ensure you have `python` and the required dependencies installed (see [Requirements](#requirements))
+2. Navigate to the repository root (or use the full path to `md2pdf`)
 
+**Basic conversion:**
 ```bash
-python tools/md2pdf/convert.py path/to/doc.md
+python OnTheGoTools/md2pdf/convert.py path/to/doc.md
 # -> path/to/doc.pdf
 
-python tools/md2pdf/convert.py path/to/doc.md -o out/doc.pdf --no-toc
+python OnTheGoTools/md2pdf/convert.py path/to/doc.md -o output/doc.pdf --no-toc
 ```
 
-Options:
-- `-o/--output PATH` — output PDF path (default: input with `.pdf` extension)
+**Options:**
+- `-o/--output PATH` — output PDF path (default: input filename with `.pdf` extension)
 - `--title TEXT` — override the document title
 - `--keep-h1` — don't promote a leading `# Title` line to the title page; keep it as a numbered heading
 - `--no-toc` — omit the table of contents
@@ -41,6 +44,18 @@ Options:
 - `--highlight-style NAME` — pandoc code highlight theme (default `tango`)
 - `--margin SIZE` — page margin, e.g. `1in`, `2.5cm` (default `1in`)
 - `--fontsize SIZE` — base font size, e.g. `10pt`, `12pt` (default `11pt`)
+
+**Examples:**
+```bash
+# Convert notebook.md with custom output location
+python OnTheGoTools/md2pdf/convert.py notebooks/my-analysis.md -o results/my-analysis.pdf
+
+# Convert without table of contents and with smaller margins
+python OnTheGoTools/md2pdf/convert.py research/notes.md --no-toc --margin 0.75in
+
+# Override title and auto-number sections
+python OnTheGoTools/md2pdf/convert.py doc.md --title "Research Report" --number-sections
+```
 
 ## What it handles
 
