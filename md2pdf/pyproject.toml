@@ -1,0 +1,46 @@
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "md2pdf"
+version = "0.1.0"
+description = "Convert Markdown to print-ready PDF with consistent styling for research notes"
+readme = "README.md"
+requires-python = ">=3.9"
+license = "MIT"
+authors = [
+  { name = "RESource Contributors" },
+]
+keywords = ["markdown", "pdf", "pandoc", "latex", "research"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Science/Research",
+]
+dependencies = []
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=7.0",
+  "black>=23.0",
+  "ruff>=0.1",
+]
+
+[project.scripts]
+md2pdf = "md2pdf.convert:cli"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["md2pdf*"]
+
+[tool.setuptools.package-data]
+md2pdf = ["../assets/*.tex"]
+

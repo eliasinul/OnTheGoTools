@@ -21,21 +21,98 @@ For a basic PDF or a different layout, use Pandoc directly. Use `md2pdf` when
 you want a repeatable, print-ready result with the repository's research-note
 defaults.
 
-## Usage
+## Installation
 
-**Setup:**
-1. Ensure you have `python` and the required dependencies installed (see [Requirements](#requirements))
-2. Navigate to the repository root (or use the full path to `md2pdf`)
+### Quick Start (Automated)
 
-**Basic conversion:**
+The easiest way to set up `md2pdf` is to run the setup script, which will:
+1. Check that system dependencies (pandoc, xelatex, fonts) are installed
+2. Install `md2pdf` as a command-line tool
+3. Verify everything works
+
 ```bash
-python OnTheGoTools/md2pdf/convert.py path/to/doc.md
-# -> path/to/doc.pdf
-
-python OnTheGoTools/md2pdf/convert.py path/to/doc.md -o output/doc.pdf --no-toc
+cd OnTheGoTools/md2pdf
+chmod +x setup.sh
+./setup.sh
 ```
 
-**Options:**
+This creates a sandboxed environment and makes `md2pdf` available as a command.
+
+### Manual Installation
+
+**Step 1: Install system dependencies**
+
+- **pandoc**: Document converter
+  - Ubuntu/Debian: `sudo apt install pandoc`
+  - macOS: `brew install pandoc`
+  - Windows: https://pandoc.org/installing.html
+
+- **xelatex** (via TeX distribution): LaTeX engine with Unicode support
+  - Ubuntu/Debian: `sudo apt install texlive-xetex texlive-latex-extra`
+  - macOS: `brew install mactex`
+  - Windows: https://miktex.org/download
+
+- **DejaVu fonts**: Used for document rendering
+  - Ubuntu/Debian: `sudo apt install fonts-dejavu`
+  - macOS: https://dejavu-fonts.github.io/
+  - Windows: https://dejavu-fonts.github.io/
+
+**Step 2: Install md2pdf package**
+
+From the repository root or the `OnTheGoTools/md2pdf` directory:
+
+```bash
+# Using uv (RESource convention)
+uv pip install -e OnTheGoTools/md2pdf
+
+# Or using pip directly
+pip install -e OnTheGoTools/md2pdf
+```
+
+**Step 3: Verify installation**
+
+```bash
+md2pdf --help
+```
+
+You should see the help text. If you get a "command not found" error, your
+Python scripts directory is not on PATH. Use the full path instead:
+```bash
+python -m md2pdf.convert --help
+```
+
+## Usage
+
+### Basic Conversion
+
+Once installed, convert a Markdown file to PDF:
+
+```bash
+md2pdf path/to/document.md
+# → creates path/to/document.pdf
+```
+
+### Advanced Usage
+
+```bash
+# Save to a different location
+md2pdf path/to/document.md -o output/report.pdf
+
+# Omit table of contents
+md2pdf path/to/document.md --no-toc
+
+# Override title and auto-number sections
+md2pdf path/to/document.md --title "My Report" --number-sections
+
+# Customize margins and font size
+md2pdf path/to/document.md --margin 0.75in --fontsize 10pt
+
+# Keep leading heading as a numbered section (don't promote to title page)
+md2pdf path/to/document.md --keep-h1
+```
+
+### Options
+
 - `-o/--output PATH` — output PDF path (default: input filename with `.pdf` extension)
 - `--title TEXT` — override the document title
 - `--keep-h1` — don't promote a leading `# Title` line to the title page; keep it as a numbered heading
@@ -45,17 +122,29 @@ python OnTheGoTools/md2pdf/convert.py path/to/doc.md -o output/doc.pdf --no-toc
 - `--margin SIZE` — page margin, e.g. `1in`, `2.5cm` (default `1in`)
 - `--fontsize SIZE` — base font size, e.g. `10pt`, `12pt` (default `11pt`)
 
-**Examples:**
+### Examples
+
 ```bash
 # Convert notebook.md with custom output location
-python OnTheGoTools/md2pdf/convert.py notebooks/my-analysis.md -o results/my-analysis.pdf
+md2pdf notebooks/my-analysis.md -o results/my-analysis.pdf
 
 # Convert without table of contents and with smaller margins
-python OnTheGoTools/md2pdf/convert.py research/notes.md --no-toc --margin 0.75in
+md2pdf research/notes.md --no-toc --margin 0.75in
 
 # Override title and auto-number sections
-python OnTheGoTools/md2pdf/convert.py doc.md --title "Research Report" --number-sections
+md2pdf doc.md --title "Research Report" --number-sections
 ```
+
+### Without Installing (Direct Script Use)
+
+If you prefer not to install globally, you can run the script directly:
+
+```bash
+python OnTheGoTools/md2pdf/convert.py path/to/document.md
+python OnTheGoTools/md2pdf/convert.py path/to/document.md -o output/report.pdf --no-toc
+```
+
+
 
 ## What it handles
 
@@ -83,15 +172,69 @@ The following capabilities are planned and are not available yet:
 
 ## Requirements
 
-- `pandoc` on `PATH`
-- A TeX distribution providing `xelatex`, with `fontspec`, `unicode-math`,
-  `fancyhdr`, `booktabs`, `longtable`, `tcolorbox`, `seqsplit`, `etoolbox`,
-  `newunicodechar` available (all present in a standard TeX Live install)
-- `DejaVu Serif`/`DejaVu Sans`/`DejaVu Sans Mono` fonts installed (used as
-  the document fonts; override by editing the `-V mainfont=...` etc. lines
-  in `convert.py` if you'd rather use something else)
+### System Requirements
 
-## Files
+All of these are automatically checked by the setup script:
 
-- `convert.py` — CLI / importable `convert()` function
-- `preamble.tex` — LaTeX injected via `--include-in-header` for the actual styling
+- **pandoc** (document converter)
+  - Required on `PATH`
+  - Install: Ubuntu/Debian: `apt install pandoc` | macOS: `brew install pandoc` | Windows: https://pandoc.org/installing.html
+
+- **xelatex** (TeX engine with Unicode support)
+  - Requires a TeX distribution (all major TeX packages include this)
+  - Required packages: `fontspec`, `unicode-math`, `fancyhdr`, `booktabs`, `longtable`, `tcolorbox`, `seqsplit`, `etoolbox`, `newunicodechar` (all included in standard TeX Live)
+  - Install: Ubuntu/Debian: `apt install texlive-xetex texlive-latex-extra` | macOS: `brew install mactex` | Windows: https://miktex.org/
+
+- **DejaVu Fonts** (document rendering)
+  - `DejaVu Serif`, `DejaVu Sans`, `DejaVu Sans Mono`
+  - Install: Ubuntu/Debian: `apt install fonts-dejavu` | macOS/Windows: https://dejavu-fonts.github.io/
+
+### Python Requirements
+
+- Python 3.9+ (no additional packages required; `md2pdf` only wraps existing tools)
+
+## Project Structure
+
+```
+md2pdf/
+├── src/md2pdf/              # Main package source code
+│   ├── __init__.py         # Package metadata and version
+│   └── convert.py          # Core conversion logic and CLI
+├── assets/                 # Non-code resources
+│   └── preamble.tex       # LaTeX template for print-ready styling
+├── tests/                  # Test suite
+│   ├── __init__.py        # Test package marker
+│   └── test_convert.py    # Unit tests for conversion functions
+├── docs/                   # Documentation
+│   ├── DEVELOPMENT.md     # Development guide and setup
+│   ├── ARCHITECTURE.md    # Technical architecture and design
+│   └── CHANGELOG.md       # Version history and releases
+├── examples/               # Example Markdown files
+│   ├── example.md         # Comprehensive example with all features
+│   └── README.md          # Guide to running examples
+├── pyproject.toml         # Package metadata, dependencies, entry points
+├── pytest.ini             # Pytest configuration
+├── .ruff.toml            # Linter and formatter configuration
+├── Makefile              # Common development tasks (make help)
+├── requirements.txt      # Python dev dependencies
+├── setup.sh             # Automated setup and dependency checker
+├── .gitignore           # Git ignore patterns
+└── README.md            # This file
+```
+
+### Key Entry Points
+
+- **[src/md2pdf/convert.py](/local-scratch/localhome/mei3/eliasinul/work/RESource/OnTheGoTools/md2pdf/src/md2pdf/convert.py)** — Main conversion module with CLI and `convert()` API
+- **[setup.sh](/local-scratch/localhome/mei3/eliasinul/work/RESource/OnTheGoTools/md2pdf/setup.sh)** — Run this to install and verify dependencies
+- **[Makefile](/local-scratch/localhome/mei3/eliasinul/work/RESource/OnTheGoTools/md2pdf/Makefile)** — Run `make help` for common tasks
+
+### Documentation Files
+
+- **[README.md](/local-scratch/localhome/mei3/eliasinul/work/RESource/OnTheGoTools/md2pdf/README.md)** — User guide (this file)
+- **[docs/DEVELOPMENT.md](/local-scratch/localhome/mei3/eliasinul/work/RESource/OnTheGoTools/md2pdf/docs/DEVELOPMENT.md)** — Developer setup and workflow
+- **[docs/ARCHITECTURE.md](/local-scratch/localhome/mei3/eliasinul/work/RESource/OnTheGoTools/md2pdf/docs/ARCHITECTURE.md)** — Technical design and internals
+- **[docs/CHANGELOG.md](/local-scratch/localhome/mei3/eliasinul/work/RESource/OnTheGoTools/md2pdf/docs/CHANGELOG.md)** — Version history
+
+### Example Usage
+
+See [examples/](/local-scratch/localhome/mei3/eliasinul/work/RESource/OnTheGoTools/md2pdf/examples/) for sample Markdown files and how to convert them.

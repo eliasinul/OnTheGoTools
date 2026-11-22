@@ -1,0 +1,7 @@
+# md2pdf runtime dependencies
+# (External: pandoc, xelatex via system package manager)
+
+# Development dependencies
+pytest>=7.0
+black>=23.0
+ruff>=0.1

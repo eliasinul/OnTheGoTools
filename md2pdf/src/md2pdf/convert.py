@@ -22,7 +22,7 @@ import sys
 from pathlib import Path
 
 PACKAGE_DIR = Path(__file__).resolve().parent
-PREAMBLE = PACKAGE_DIR / "preamble.tex"
+PREAMBLE = PACKAGE_DIR.parent.parent / "assets" / "preamble.tex"
 
 LEADING_H1_RE = re.compile(r"\A\s*# (.+?)\s*\n")
 
@@ -42,6 +42,20 @@ def extract_leading_h1(text: str) -> tuple[str | None, str]:
 
 def brace_bare_over_under(text: str) -> str:
     return BARE_OVER_UNDER_RE.sub(r"\\\1{\2}", text)
+
+
+MATH_SPAN_RE = re.compile(r"\$\$.+?\$\$|(?<![\\$])\$(?!\s)[^$\n]+?(?<!\s)\$", re.DOTALL)
+UNESCAPED_SPECIAL_RE = re.compile(r"(?<!\\)([%#])")
+
+
+def escape_math_specials(text: str) -> str:
+    """Escape `%` and `#` inside math spans.
+
+    Raw `%` starts a TeX comment (swallowing the closing braces, e.g.
+    "File ended while scanning use of \\frac") and `#` is a parameter
+    character; `\\%` / `\\#` render the literal characters.
+    """
+    return MATH_SPAN_RE.sub(lambda m: UNESCAPED_SPECIAL_RE.sub(r"\\\1", m.group(0)), text)
 
 
 SUB_SUP_MACRO_RE = re.compile(r"([_^])(\\[A-Za-z]+)(?=\{)")
@@ -160,6 +174,7 @@ def convert(
             resolved_title = resolved_title or extracted_title
     body = brace_bare_over_under(body)
     body = brace_subscript_macro(body)
+    body = escape_math_specials(body)
 
     cmd = build_pandoc_command(
         output_path,
@@ -214,6 +229,11 @@ def main(argv: list[str] | None = None) -> int:
 
     print(f"wrote {output}")
     return 0
+
+
+def cli() -> int:
+    """Entry point for installed console script."""
+    return main()
 
 
 if __name__ == "__main__":
