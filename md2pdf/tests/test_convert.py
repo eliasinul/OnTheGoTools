@@ -81,3 +81,51 @@ class TestBraceSubscriptMacro:
         text = r"Power: $x^\mathbf{n}$ here."
         result = brace_subscript_macro(text)
         assert result == r"Power: $x^{\mathbf{n}}$ here."
+
+
+class TestMermaidBlocks:
+    """Test detection and replacement of ```mermaid fenced blocks."""
+
+    def test_detects_backtick_and_tilde_fences(self):
+        from md2pdf.convert import MERMAID_BLOCK_RE
+
+        text = "a\n```mermaid\nflowchart LR\n  A --> B\n```\nb\n~~~{.mermaid}\ngraph TD\n~~~\n"
+        codes = [m.group("code") for m in MERMAID_BLOCK_RE.finditer(text)]
+        assert codes == ["flowchart LR\n  A --> B", "graph TD"]
+
+    def test_ignores_other_code_blocks(self):
+        from md2pdf.convert import MERMAID_BLOCK_RE
+
+        assert not MERMAID_BLOCK_RE.search("```python\nprint(1)\n```\n")
+
+    def test_no_blocks_is_noop(self, tmp_path):
+        from md2pdf.convert import replace_mermaid_blocks
+
+        text = "plain text\n```python\nx = 1\n```\n"
+        assert replace_mermaid_blocks(text, tmp_path) == text
+
+    def test_block_replaced_by_image(self, tmp_path, monkeypatch):
+        import md2pdf.convert as c
+
+        calls = []
+        monkeypatch.setattr(c, "find_chrome", lambda: "chrome")
+        monkeypatch.setattr(c.shutil, "which", lambda name: "/bin/" + name)
+        monkeypatch.setattr(c, "mermaid_js_path", lambda: tmp_path / "m.js")
+        monkeypatch.setattr(c, "render_mermaid", lambda code, pdf, **kw: calls.append(code) or pdf)
+        out = c.replace_mermaid_blocks("x\n```mermaid\nclassDef a fill:#fff\n```\ny\n", tmp_path)
+        assert calls == ["classDef a fill:#fff"]
+        assert "```" not in out and "\\includegraphics" in out and ".pdf}" in out
+
+    def test_default_size_fills_width_with_height_cap(self, tmp_path):
+        from md2pdf.convert import mermaid_latex
+
+        tex = mermaid_latex(tmp_path / "d.pdf")
+        assert r"width=\linewidth,height=0.6\textheight,keepaspectratio" in tex
+
+    def test_size_attributes(self, tmp_path):
+        from md2pdf.convert import MERMAID_BLOCK_RE, mermaid_latex
+
+        m = MERMAID_BLOCK_RE.search("```{.mermaid width=60% height=0.3}\ngraph LR\n```\n")
+        tex = mermaid_latex(tmp_path / "d.pdf", m.group("attrs"))
+        assert r"width=0.6\linewidth,height=0.3\textheight" in tex
+        assert r"width=9cm" in mermaid_latex(tmp_path / "d.pdf", "width=9cm")

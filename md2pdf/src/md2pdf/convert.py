@@ -11,14 +11,23 @@ number their own "## 1. ..." headings by hand; pass --number-sections for
 docs that don't.
 
 Requires `pandoc` and a TeX distribution providing `xelatex` on PATH.
+
+```mermaid blocks are rendered to vector PDF via headless Chrome + mermaid.js
+(downloaded once to ~/.cache/md2pdf; override with $MD2PDF_MERMAID_JS) and
+cropped with `pdfcrop`. Set $MD2PDF_CHROME to pick a browser binary.
 """
 from __future__ import annotations
 
 import argparse
+import hashlib
+import html
+import os
 import re
 import shutil
 import subprocess
 import sys
+import tempfile
+import urllib.request
 from pathlib import Path
 
 PACKAGE_DIR = Path(__file__).resolve().parent
@@ -92,6 +101,139 @@ def brace_subscript_macro(text: str) -> str:
         i = j + 1
     out.append(text[i:])
     return "".join(out)
+
+
+# --- Mermaid ---------------------------------------------------------------
+# Pandoc has no Mermaid support, and mermaid-cli (mmdc) needs a modern Node.
+# Instead each ```mermaid block is rendered by mermaid.js inside headless
+# Chrome, printed to a vector PDF, cropped with pdfcrop, and swapped for an
+# image reference before pandoc runs.
+
+MERMAID_VERSION = "11.4.1"
+MERMAID_URL = f"https://cdn.jsdelivr.net/npm/mermaid@{MERMAID_VERSION}/dist/mermaid.min.js"
+MERMAID_BLOCK_RE = re.compile(
+    r"^(?P<fence>`{3,}|~{3,})[ \t]*(?:mermaid|\{[ \t]*\.mermaid(?P<attrs>[^}\n]*)\})[ \t]*\n"
+    r"(?P<code>.*?)\n(?P=fence)[ \t]*$",
+    re.DOTALL | re.MULTILINE,
+)
+# Default size on the page: full text width, but never taller than this share
+# of the text height (tall TD charts shrink to fit instead of overflowing).
+# Override per block: ```{.mermaid width=60%}  or  ```{.mermaid width=9cm height=0.4}
+MERMAID_DEFAULT_WIDTH = r"\linewidth"
+MERMAID_DEFAULT_MAX_HEIGHT = 0.6
+MERMAID_ATTR_RE = re.compile(r"(width|height)\s*=\s*\"?([^\s\"]+)\"?")
+CHROME_CANDIDATES = ("google-chrome", "google-chrome-stable", "chromium", "chromium-browser", "chrome")
+
+MERMAID_HTML = """<!doctype html>
+<html><head><meta charset="utf-8">
+<style>
+  @page {{ size: 4000px 4000px; margin: 0; }}
+  html, body {{ margin: 0; padding: 0; background: #ffffff; }}
+  body {{ -webkit-print-color-adjust: exact; print-color-adjust: exact; padding: 8px; }}
+  pre.mermaid {{ margin: 0; display: inline-block; }}
+</style>
+<script src="{js}"></script>
+</head><body>
+<pre class="mermaid">{code}</pre>
+<script>
+  mermaid.initialize({{ startOnLoad: false, theme: "neutral", securityLevel: "loose",
+                        flowchart: {{ htmlLabels: true }} }});
+  mermaid.run().then(() => {{ document.title = "done"; }})
+               .catch(e => {{ document.body.innerHTML = "<pre>MERMAID ERROR: " + e + "</pre>"; }});
+</script>
+</body></html>
+"""
+
+
+def find_chrome() -> str | None:
+    override = os.environ.get("MD2PDF_CHROME")
+    if override:
+        return override
+    for name in CHROME_CANDIDATES:
+        path = shutil.which(name)
+        if path:
+            return path
+    return None
+
+
+def mermaid_js_path() -> Path:
+    """Local mermaid.min.js: $MD2PDF_MERMAID_JS, else a cached download."""
+    override = os.environ.get("MD2PDF_MERMAID_JS")
+    if override:
+        return Path(override)
+    cache = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "md2pdf"
+    path = cache / f"mermaid-{MERMAID_VERSION}.min.js"
+    if not path.is_file():
+        cache.mkdir(parents=True, exist_ok=True)
+        print(f"md2pdf: downloading mermaid {MERMAID_VERSION} (one-time) ...", file=sys.stderr)
+        with urllib.request.urlopen(MERMAID_URL, timeout=60) as resp:
+            data = resp.read()
+        tmp = path.with_suffix(".part")
+        tmp.write_bytes(data)
+        tmp.replace(path)
+    return path
+
+
+def render_mermaid(code: str, out_pdf: Path, *, chrome: str, js: Path) -> Path:
+    """Render one Mermaid diagram to a tightly cropped vector PDF."""
+    page = out_pdf.with_suffix(".html")
+    page.write_text(MERMAID_HTML.format(js=js.as_uri(), code=html.escape(code)), encoding="utf-8")
+    raw = out_pdf.with_name(out_pdf.stem + "_page.pdf")
+    subprocess.run(
+        [chrome, "--headless", "--disable-gpu", "--no-sandbox", "--no-pdf-header-footer",
+         "--allow-file-access-from-files", "--virtual-time-budget=20000",
+         f"--print-to-pdf={raw}", page.as_uri()],
+        check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=120,
+    )
+    if not raw.is_file():
+        raise RuntimeError(f"Chrome did not write {raw}")
+    subprocess.run(["pdfcrop", "--margins", "2", str(raw), str(out_pdf)],
+                   check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    return out_pdf
+
+
+def _latex_length(value: str, unit: str) -> str:
+    """'60%' -> 0.6<unit>, '0.4' -> 0.4<unit>, '9cm' / '\\linewidth' -> as given."""
+    if value.endswith("%"):
+        return f"{float(value[:-1]) / 100:g}{unit}"
+    try:
+        return f"{float(value):g}{unit}"
+    except ValueError:
+        return value
+
+
+def mermaid_latex(pdf: Path, attrs: str = "") -> str:
+    """Raw LaTeX that places a rendered diagram, scaled up or down to fit."""
+    opts = dict(MERMAID_ATTR_RE.findall(attrs))
+    width = _latex_length(opts.get("width", MERMAID_DEFAULT_WIDTH), r"\linewidth")
+    height = _latex_length(opts.get("height", str(MERMAID_DEFAULT_MAX_HEIGHT)), r"\textheight")
+    return (
+        "\n\\begin{center}\n"
+        f"\\includegraphics[width={width},height={height},keepaspectratio]{{{pdf.as_posix()}}}\n"
+        "\\end{center}\n"
+    )
+
+
+def replace_mermaid_blocks(text: str, workdir: Path) -> str:
+    """Swap every ```mermaid fenced block for a rendered PDF image."""
+    blocks = list(MERMAID_BLOCK_RE.finditer(text))
+    if not blocks:
+        return text
+    chrome = find_chrome()
+    if chrome is None:
+        raise RuntimeError("Mermaid block found but no Chrome/Chromium on PATH (set MD2PDF_CHROME)")
+    if shutil.which("pdfcrop") is None:
+        raise RuntimeError("Mermaid block found but pdfcrop is not on PATH (ships with TeX Live)")
+    js = mermaid_js_path()
+
+    def _sub(match: re.Match, counter=iter(range(1, len(blocks) + 1))) -> str:
+        code = match.group("code")
+        digest = hashlib.sha1(code.encode("utf-8")).hexdigest()[:10]
+        pdf = workdir / f"mermaid_{next(counter):02d}_{digest}.pdf"
+        render_mermaid(code, pdf, chrome=chrome, js=js)
+        return mermaid_latex(pdf, match.group("attrs") or "")
+
+    return MERMAID_BLOCK_RE.sub(_sub, text)
 
 
 def build_pandoc_command(
@@ -172,10 +314,6 @@ def convert(
         if extracted_title:
             body = remainder
             resolved_title = resolved_title or extracted_title
-    body = brace_bare_over_under(body)
-    body = brace_subscript_macro(body)
-    body = escape_math_specials(body)
-
     cmd = build_pandoc_command(
         output_path,
         title=resolved_title,
@@ -185,7 +323,13 @@ def convert(
         margin=margin,
         fontsize=fontsize,
     )
-    subprocess.run(cmd, cwd=input_path.parent, input=body, text=True, check=True)
+    with tempfile.TemporaryDirectory(prefix="md2pdf_") as tmp:
+        # Mermaid first, so the TeX fix-ups below never touch diagram source.
+        body = replace_mermaid_blocks(body, Path(tmp))
+        body = brace_bare_over_under(body)
+        body = brace_subscript_macro(body)
+        body = escape_math_specials(body)
+        subprocess.run(cmd, cwd=input_path.parent, input=body, text=True, check=True)
     return output_path
 
 

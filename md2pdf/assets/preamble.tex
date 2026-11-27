@@ -20,7 +20,11 @@
 
 % Fall back to DejaVu Sans for symbols absent from the main serif font.
 \newfontfamily\symbolfallback{DejaVu Sans}
-\newunicodechar{⚠}{{\symbolfallback ⚠}}
+% (List = common note symbols that DejaVu Serif lacks but DejaVu Sans has;
+% a glyph missing from the active font is silently dropped by xelatex.)
+\newcommand{\symfb}[1]{\newunicodechar{#1}{{\symbolfallback #1}}}
+\symfb{⚠}\symfb{✓}\symfb{✔}\symfb{✗}\symfb{✘}\symfb{★}\symfb{☆}\symfb{✦}
+\symfb{✱}\symfb{☐}\symfb{☑}\symfb{☒}\symfb{➜}\symfb{➔}\symfb{⚡}\symfb{❄}\symfb{☁}
 
 % -- Page geometry / headers & footers --------------------------------------
 \pagestyle{fancy}
